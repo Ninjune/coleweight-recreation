@@ -31,6 +31,18 @@ website.get("/api/alloy-drop/on-drop", (req, res) => {
     res.json(response)
 })
 
+website.get("/api/nucleus-run/complete", (req, res) => {
+    const response = {success: false, reason: ''};
+
+    if (alloyFunctions.nucleusRunTrack(req.query.username, req.headers['x-forwarded-for'])) {
+        response.success = true;
+    } else {
+        response.reason = 'You are ip banned.';
+    }
+
+    res.json(response);
+})
+
 website.get("/api/alloy-drop/last", (req, res) => {
     res.send(alloyFunctions.getLastAlloy().toString())
 })
