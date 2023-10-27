@@ -10,6 +10,33 @@ let lastAlloy=-2
 let bannedIps = undefined
 let beingChecked = new Set()
 let strikesByIp = new Map()
+let lastNucleusRunTime = {};
+
+function nucleusRunTrack(name,ip) {
+    if(getBannedIps().has(ip))
+        return false;
+    if(!(ip in lastNucleusRunTime) || (lastNucleusRunTime[ip]==undefined))
+        lastNucleusRunTime[ip] = -1;
+
+    let lastTime = lastNucleusRunTime[ip];
+
+    if (Date.now() - lastTime < 60000) { // User posted two requests in under a minute for completing nucleus runs
+        if (!(ip in strikesByIp)) {
+            strikesByIp[ip] = 1;
+        } else {
+            strikesByIp[ip]++;
+            if (strikesByIp[ip] > 2) {
+                banIp(ip);
+                return false;
+            }
+        }
+        setTimeout(function(){strikesByIp[ip]--},5*60*60*1000) //strikes are reset after 5 hours
+        return false;
+    }
+    logToFile(`${name} completed a nucleus run at ${Date.now()}`);
+    lastNucleusRunTime[name] = Date.now();
+    return true;
+}
 
 function alloyCheck(name,ip){
     if(getBannedIps().has(ip))
