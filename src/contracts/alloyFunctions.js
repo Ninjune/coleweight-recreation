@@ -34,7 +34,7 @@ function nucleusRunTrack(name,ip) {
         return false;
     }
     logToFile(`${name} completed a nucleus run at ${Date.now()}`);
-    lastNucleusRunTime[name] = Date.now();
+    lastNucleusRunTime[ip] = Date.now();
     return true;
 }
 
