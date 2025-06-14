@@ -1,5 +1,5 @@
-# coleweight-recreation
-Coleweight bot for https://discord.gg/mining & backend for my site https://ninjune.dev.
+# Coleweight
+Coleweight discord bot for https://discord.gg/mining & backend for my site https://ninjune.dev.
 ## Setup:
 - Requires nodejs, I'm using v16.18.0, idk what it's compatible with.
 - Clone directory and do "npm install" in the folder.
