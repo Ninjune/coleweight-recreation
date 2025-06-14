@@ -53,7 +53,7 @@ module.exports = {
 
             try
             {
-                userData = (await axios.get(`https://api.hypixel.net/player?key=${config.api.hypixelAPIkey}&uuid=${uuid}`)).data
+                userData = (await axios.get(`https://api.hypixel.net/v2/player?key=${config.api.hypixelAPIkey}&uuid=${uuid}`)).data
             }
             catch(e)
             {

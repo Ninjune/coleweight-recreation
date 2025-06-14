@@ -10,9 +10,9 @@ module.exports = {
 
     execute: async (interaction, client) => {
         let discordData = await interaction.guild.members.fetch(interaction.user),
-         discordUser = discordData.user.username + "#" + discordData.user.discriminator
+         discordUser = discordData.user.username
 
-        if(discordUser != config.discord.owner) {interaction.followUp("No access."); return}
+        if(discordUser.toLowerCase() != config.discord.owner.toLowerCase()) {interaction.followUp("No access."); return}
 
         try
         {

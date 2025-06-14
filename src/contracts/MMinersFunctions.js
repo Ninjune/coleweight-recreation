@@ -121,7 +121,7 @@ function addMM(uuid, type, discordID, griefcount = 1, visible, proof = "")
 
 async function autoRemoveGriefers()
 {
-    let MMRows = fs.readFileSync("./csvs/maliciousMiners.csv", "utf8").split("\r\n")
+    /*let MMRows = fs.readFileSync("./csvs/maliciousMiners.csv", "utf8").split("\r\n")
     if(MMRows.length < 5)
         logToFile("Wewoo! < 5! 1")
 
@@ -142,7 +142,7 @@ async function autoRemoveGriefers()
 
     fs.writeFileSync("./csvs/maliciousMiners.csv", MMRows.join("\r\n"))
     await coleweightFunctions.sleep(3600000) // 1 hour
-    autoRemoveGriefers()
+    autoRemoveGriefers()*/ 
 }
 
 

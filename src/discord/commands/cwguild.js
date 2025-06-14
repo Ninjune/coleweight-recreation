@@ -46,7 +46,7 @@ module.exports = {
             try
             {
                 const guild = interaction.options.getString("guild")
-                const guildData = (await axios.get(`https://api.hypixel.net/guild?key=${config.api.hypixelAPIkey}&name=${guild}`)).data
+                const guildData = (await axios.get(`https://api.hypixel.net/v2/guild?key=${config.api.hypixelAPIkey}&name=${guild}`)).data
                 let lengthOfGuild = guildData.guild.members.length,
                   max = 0,
                   lb = [],

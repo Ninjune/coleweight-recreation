@@ -1,97 +1,99 @@
-const fs = require("fs")
-const express = require("express")
-const coleweightFunctions = require("../contracts/coleweightFunctions")
-const maliciousMiners = require("../contracts/MMinersFunctions")
-const alloyFunctions = require("../contracts/alloyFunctions")
-const website = express()
-const { checkMojangAuth } = require("../contracts/util")
+const fs = require("fs");
+const express = require("express");
+const coleweightFunctions = require("../contracts/coleweightFunctions");
+const maliciousMiners = require("../contracts/MMinersFunctions");
+const alloyFunctions = require("../contracts/alloyFunctions");
+const website = express();
+const { checkMojangAuth } = require("../contracts/util");
+const { getColors } = require("../contracts/colorsFunctions");
+const { getMojangData } = require("../contracts/api");
 
 website.options("/", (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "https://ninjune.dev")
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT")
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type")
-    res.sendStatus(204)
-})
-website.use(express.static(__dirname + "/site"))
+    res.setHeader("Access-Control-Allow-Origin", "https://ninjune.dev");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.sendStatus(204);
+});
+website.use(express.static(__dirname + "/site"));
 
 website.get("/api/coleweight-leaderboard", (req, res) => {
-    let lb = []
-    lb = coleweightFunctions.getLeaderboard("./csvs/coleweightlb.csv", req.query.length ?? 5000, req.query.start ?? 1)
-    res.json(lb)
-})
+    let lb = [];
+    lb = coleweightFunctions.getLeaderboard("./csvs/coleweightlb.csv", req.query.length ?? 5000, req.query.start ?? 1);
+    res.json(lb);
+});
 
 website.get("/api/alloy-drop/on-drop", (req, res) => {
-    let response = {success: false, reason: ""}
+    let response = {success: false, reason: ""};
 
     if(alloyFunctions.alloyCheck(req.query.username, req.headers["x-forwarded-for"]))
-        response.success = true
+        response.success = true;
     else
-        response.reason = "You are ip banned."
+        response.reason = "You are ip banned.";
 
-    res.json(response)
-})
+    res.json(response);
+});
 
 website.get("/api/alloy-drop/last", (req, res) => {
-    res.send(alloyFunctions.getLastAlloy().toString())
-})
+    res.send(alloyFunctions.getLastAlloy().toString());
+});
 
 website.get("/api/coleweight", async function (req, res) {
     try
     {
-        const username = req.query.username
-        let data = await coleweightFunctions.getColeweight(username)
+        const username = req.query.username;
+        let data = await coleweightFunctions.getColeweight(username);
 
-        data.userData = undefined
-        data.profileData = undefined
-        res.json(data)
+        data.userData = undefined;
+        data.profileData = undefined;
+        res.json(data);
     }
     catch(e)
     {
-        res.send(`Missing required parameter (api/coleweight?username=) ${e}`)
+        res.send(`Missing required parameter (api/coleweight?username=) ${e}`);
     }
-})
+});
 
 
 website.get("/api/cwinfo", (req, res) => {
     let cwValues = JSON.parse(fs.readFileSync("./csvs/cwinfo.json", "utf8")),
-     cwValuesObject = {"experience": [], "powder": [], "collection": [], "miscellaneous": []}
+     cwValuesObject = {"experience": [], "powder": [], "collection": [], "miscellaneous": []};
 
-    cwValuesObject = cwValues
+    cwValuesObject = cwValues;
 
-    res.json(cwValuesObject)
-})
+    res.json(cwValuesObject);
+});
 
 
 website.get("/api/lbpos", async function (req, res) {
     try
     {
-        const username = req.query.username
-        let data = await coleweightFunctions.lbreq(username)
+        const username = req.query.username;
+        let data = await coleweightFunctions.lbreq(username);
 
-        res.json(data)
+        res.json(data);
     }
     catch(e)
     {
-        res.send("Missing required parameter (api/lbpos?username=)")
+        res.send("Missing required parameter (api/lbpos?username=)");
     }
-})
+});
 
 
 website.get("/api/mminers", async function (req, res) {
     if((req.query.username) == undefined)
     {
-        let data = await maliciousMiners.listMMiners(req.query.uuidOnly)
+        let data = await maliciousMiners.listMMiners(req.query.uuidOnly);
 
-        res.json(data)
+        res.json(data);
     }
     else
     {
-        const username = req.query.username
-        let data = maliciousMiners.findMM(username)
+        const username = req.query.username;
+        let data = maliciousMiners.findMM(username);
 
-        res.json(data)
+        res.json(data);
     }
-})
+});
 
 
 website.get("/api", async function (req, res) {
@@ -105,56 +107,109 @@ website.get("/api", async function (req, res) {
     <p>/api/mminers[?username='...'?uuidOnly='(bool)'] - username is Minecraft ign or uuid. uuidOnly increases speed because it won't convert every uuid to username when reqing the db. returns if the user is a mminer or all mminers.</p>
     <p>/api/cwusers(type=...) (requires mojangAuth) - gives current coleweight users and adds user onto users or removes user.</p>
     <p>/api/alloy-drop/on-drop(?username='...') - username is Minecraft ign or uuid. Notifies the server about a divans alloy drop. Only call this if you know what you are doing.</p>
-    <p>/api/alloy-drop/last - returns the last known alloy drop timestamp rounded to minutes in UTC</p>
-    `)
-})
+    <p>/api/alloy-drop/last - returns the last known alloy drop timestamp in UTC</p>
+    <p>/api/cw/colors/set-color(?color='...') (requires mojangAuth) - sets a player's cw rank color</p>
+    <p>/api/cw/colors/get-colors(?username='...') - gets available colors for a player's cw rank</p>
+    <p>/api/cw/colors/get-players - gets a list of all custom colors</p>
+    `);
+});
 
 
 website.get("/api/cwusers", async function (req, res) {
-    let users = fs.readFileSync("./csvs/cwusers.csv", "utf8").split("\r\n")
+    let users = fs.readFileSync("./csvs/cwusers.csv", "utf8").split("\r\n");
 
-    let mojangRes = await checkMojangAuth(req.query.username, req.query.serverID)
-    if(!mojangRes.success) return mojangRes
+    let mojangRes = await checkMojangAuth(req.query.username, req.query.serverID);
+    if(!mojangRes.success) return mojangRes;
 
-    let included = false
+    let included = false;
     users.forEach((user, index) => {
-        let row = user.split(" ")
+        let row = user.split(" ");
 
         if(row[0] == req.query.username)
         {
             if(req.query.type == "remove")
-                users.splice(index, 1)
+                users.splice(index, 1);
             else
-                included = true
+                included = true;
         }
-    })
-    if(!included && req.query.type != "remove") users.push(req.query.username)
+    });
+    if(!included && req.query.type != "remove") users.push(req.query.username);
 
-    fs.writeFileSync("./csvs/cwusers.csv", users.join("\r\n"))
-    res.json({success: true, users: users})
-})
+    fs.writeFileSync("./csvs/cwusers.csv", users.join("\r\n"));
+    res.json({success: true, users: users});
+});
 
-let routes = JSON.parse(fs.readFileSync("./csvs/routeDB.csv"))
+let routes = JSON.parse(fs.readFileSync("./csvs/routeDB.csv"));
 website.get("/api/cw/routes", function (req, res) {
     if(req.query.route == undefined) // get route names
     {
-        let routeNames = []
+        let routeNames = [];
         routes.forEach(route => {
-            routeNames.push({name: route.name, description: route.description})
-        })
+            routeNames.push({name: route.name, description: route.description});
+        });
 
-        res.json(routeNames)
+        res.json(routeNames);
     }
     else
-        res.json(routes.find(route => route.name == req.query.route) ?? {found: false})
-})
+        res.json(routes.find(route => route.name == req.query.route) ?? {found: false});
+});
+
+
+website.get("/api/cw/colors/set-color", async function (req, res) {
+    let response = {success: false, reason: ""};
+    if(req.query.username == undefined || req.query.serverID == undefined || req.query.color == undefined)
+    {
+        response.reason = "Invalid parameters.";
+        res.json(response);
+        return;
+    }
+
+    const auth = await checkMojangAuth(req.query.username, req.query.serverID);
+    if(!auth.success)
+    {
+        res.json(auth);
+        return;
+    }
+
+    const mojangData = (await getMojangData(req.query.username));
+    if(!mojangData.uuid == undefined)
+    {
+        response.reason("Error fetching UUID");
+        res.json(response);
+        return;
+    }
+
+    let users = JSON.parse(fs.readFileSync("./csvs/customcolors.json", "utf8"));
+    if(!(await getColors(mojangData.uuid)).includes(req.query.color))
+    {
+        response.reason = "Invalid color.";
+        res.json(response);
+        return;
+    }
+
+    users[req.query.username] = req.query.color;
+    fs.writeFileSync("./csvs/customcolors.json", JSON.stringify(users))
+    response.reason = undefined;
+    response.success = true;
+    res.json(response);
+});
+
+
+website.get("/api/cw/colors/get-colors", async function (req, res) {
+    res.json({success: true, colors: (await getColors((await getMojangData(req.query.username))?.uuid))})
+});
+
+
+website.get("/api/cw/colors/get-players", async function (req, res) {
+    res.send(fs.readFileSync("./csvs/customcolors.json", "utf8"));
+});
 
 //httpServer.listen(80)
 //httpsServer.listen(443)
 
 function updateRoutes() // COULD CAUSE ERRORS
 {
-    routes = JSON.parse(fs.readFileSync("./csvs/routeDB.csv"))
+    routes = JSON.parse(fs.readFileSync("./csvs/routeDB.csv"));
 }
 
-module.exports = { updateRoutes, website }
+module.exports = { updateRoutes, website };

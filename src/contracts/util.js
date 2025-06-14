@@ -1,3 +1,4 @@
+const axios = require("axios")
 const config = require("../../config.json")
 
 
@@ -8,7 +9,7 @@ async function checkMojangAuth(name, serverId)
         let mojangRes = await axios.get(`https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${name}&serverId=${serverId}`)
 
         if(mojangRes.status != 200)
-            return {success: false, code: 501, reason: "Unknown error. (mojangRes)"}
+            return {success: false, code: mojangRes.status, reason: "Authentication error: " + mojangRes.status}
         else
             return {success: true, data: mojangRes}
     }
