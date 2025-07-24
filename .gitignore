@@ -5,5 +5,9 @@ package-lock.json
 .git
 package-lock.json
 .prettierrc.json
-coleweightlb.csv
+*.csv
 config.json
+src/web/
+index.js
+logs/
+logs/*

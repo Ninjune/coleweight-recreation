@@ -1,186 +1,370 @@
-const config = require('../../config.json')
-const axios = require('axios');
-const fs = require('node:fs');
+const config = require("../../config.json");
+const axios = require("axios");
+const fs = require("node:fs");
+const { getObjectValue } = require("./util");
+const { getMojangData, reqHypixelApi } = require("./api");
+const { logToFile } = require("./log");
+var pausedUntil = -1;
 
-function sleep(ms) {
+function sleep(ms)
+{
     return new Promise((resolve) => {
-      setTimeout(resolve, ms);
+        setTimeout(resolve, ms);
     });
 }
-async function getProfile(uuid, profileToSearch='none') 
+
+async function getLinkName(name, data)
 {
-    const userData = (await axios.get(`https://api.hypixel.net/skyblock/profiles?key=${config.api.hypixelAPIkey}&uuid=${uuid}`)).data
-    for(let i=0; i < userData.profiles.length; i+=1) {
-        if(profileToSearch = 'none') { if(userData.profiles[i].selected == true) { return userData.profiles[i] } }
-        if(userData.profiles[i].cute_name == profileToSearch) { return userData.profiles[i] }
+    if( name == undefined ) {
+        let discordUserData = await data.guild.members.fetch(data.user),
+         discID = discordUserData.user.id,
+         discRows = (fs.readFileSync("./csvs/discord.csv").toString()).split("\r\n");
+
+
+        for(let i = 0; i < discRows.length; i++)
+        {
+            let row = discRows[i].split(" ");
+            if(discID == row[0]) { name = row[1]; return name; }
+        }
+        return 0;
     }
 }
 
-async function getColeweight(name, profile) 
+
+async function doPause()
 {
-    let data = {}
-    var coleweightPath = "./coleweight.csv"
-    var coleweightRows = fs.readFileSync(coleweightPath, "utf8").split('\r\n') 
-    var collectionColeWeight = 0, mithrilPowderColeWeight = 0, bestiaryColeWeight = 0,
-        powderColeWeight = 0, experienceColeWeight = 0,
-        gemstonePowderColeWeight = 0, nucleusRunsColeWeight = 0,
-        coleweight = 0
-    var coleweightlbPath = "./coleweightlb.csv"
-    var writeData = ""
-    var rank = "Unranked. do /coleweightlb to update"
-    var lbRows = (fs.readFileSync(coleweightlbPath).toString()).split('\r\n') 
-    var uuid = ""
+    millis=pausedUntil-new Date().getTime();
+    if(millis>0){
+        await sleep(millis);
+    }
+}
 
-    if(profile == undefined) { profile = 'none'}
 
-    for(let i = 0; i < lbRows.length; i++) 
+async function setPause(millis)
+{
+    pausedUntil=millis+new Date().getTime();
+    await sleep(millis);
+}
+
+
+async function getUserData(uuid){
+    return getUserInfo(uuid);
+}
+
+
+async function getUserAuctions(uuid){
+    return getUserInfo(uuid,"/skyblock/auction","player");
+}
+
+
+async function getUserInfo(uuid, subsite="/skyblock/profiles", playerNaming="uuid",  tries = 1)
+{
+    await doPause();
+    userData = await reqHypixelApi(`${subsite}?key=${config.api.hypixelAPIkey}&${playerNaming}=${uuid}`);
+    if(userData.code === 429)
     {
-        let row = lbRows[i].split(" ")
+        logToFile(" (Hypixel) Pausing for 60 seconds!");
+        await setPause(60000);
+        if(tries <= 2)
+            return getUserData(uuid, tries+1);
+    }
+    else if(userData.code === 502)
+    {
+        logToFile(" (Hypixel) Bad gateway!");
+        await setPause(3000);
+        if(tries <= 3)
+            return getUserData(uuid, tries+1);
+    }
+    return userData;
+}
 
-        if(row[2] == name)
+/**
+ * 
+ * @async
+ * @param {string} [name] name to check (undefined default to)
+ * @param {string} [profile] name of profile of check (undefined default to selected)
+ * @param {object} [discordData] unsure
+ * @param {boolean} [guildCheck=false] unsure
+ * @returns {{name: string, coleweight: number, rank: number, percentile: number, profile: string, ping: number,
+ * experience: object, collection: object, powder: object, miscellaneous: object}}
+ */
+async function getColeweight(name = undefined, profile = undefined, discordData = undefined, guildCheck = false)
+{
+    let data = {"experience" : {}, "powder": {}, "collection": {}, "miscellaneous": {}, profiles: [] },
+     userData;
+    let coleweight = 0;
+    let coleweightlbPath = "./csvs/coleweightlb.csv",
+     profileData,
+     writeData = "",
+     rank = "Unranked.",
+     uuid = "",
+     replaceName = false,
+     nameFound = false,
+     lbRows = fs.readFileSync(coleweightlbPath, "utf8").split("\r\n"),
+     miningExp = 0,
+     totalTime = Date.now();
+
+    if(name == undefined)
+    {
+        name = await getLinkName(name, discordData);
+        if(name == 0)
         {
-            uuid = name
-            name = row[0]
+            if(discordData.member.nickname != undefined) { name = discordData.member.nickname; }
+            else { name = discordData.user.username;}
         }
     }
-    if(uuid == "") {
-        mojangData = (await axios.get(`https://api.ashcon.app/mojang/v2/user/${name}`)).data
-        name = mojangData.username
-        for(let i = 0; i < mojangData.uuid.length; i++)
+
+    let mojangData = await getMojangData(name);
+    if(mojangData.error) return { code: mojangData.code, error: "Name not found." };
+    name = mojangData.username;
+    uuid = mojangData.uuid;
+    if(!guildCheck) logToFile("name: " + name + "\nuuid: " + uuid);
+
+    userData = await getUserData(uuid);
+    if(userData.code==429||userData.code==502)
+        return userData;
+
+    if(userData?.profiles == undefined) return { code: 101, error: "Unknown1." }; // user data is empty (wrong uuid or api rate limit)
+
+    for(let i = 0; i < userData.profiles.length; i++)
+    {
+        if(userData?.profiles[i]?.members[uuid]?.player_data?.experience?.SKILL_MINING == undefined) continue;
+        if (userData.profiles[i].members[uuid].player_data.experience.SKILL_MINING >= miningExp)
+            miningExp = userData.profiles[i].members[uuid].player_data.experience.SKILL_MINING;
+    }
+
+    for(let i = 0; i < userData.profiles.length; i++)
+    {
+        if (userData?.profiles[i]?.members[uuid]?.player_data?.experience?.SKILL_MINING != undefined)
         {
-            if(mojangData.uuid[i] != "-")
+            if (profile == undefined && userData.profiles[i].selected == true)
             {
-                uuid = uuid + mojangData.uuid[i]
+                if(userData.profiles[i].members[uuid].player_data.experience.SKILL_MINING >= miningExp)
+                    replaceName = true;
+                profileData = userData.profiles[i];
             }
+            else if(profile != undefined && userData.profiles[i].cute_name.toLowerCase() == profile.toLowerCase())
+            {
+                if(userData.profiles[i].members[uuid].player_data.experience.SKILL_MINING >= miningExp)
+                    replaceName = true;
+                profileData = userData.profiles[i];
+            }
+            // there was else here to set replacename to false, unsure why it was here(?)
         }
+
+        data.profiles.push(userData.profiles[i].cute_name);
     }
 
-    /*
-    catch (e) {
-        if(e == "AxiosError: Request failed with status code 429") { console.log(" (Mojang) Pausing for 60 seconds!"); await sleep(60000); getColeweight(name, profile)}
-    }
-    */
-    
-    try{
-        var profileData = await getProfile(uuid, profile)
-    }
-    catch(e) 
-    { 
-        if(e == "AxiosError: Request failed with status code 429") { console.log(" (Hypixel) Pausing for 60 seconds!"); await sleep(60000); getColeweight(name, profile)}
-    }
-    try {
-        for( let i=0; i < coleweightRows.length; i+=1 ) {
-            let row = coleweightRows[i].split(",")
-            let sourceToSearch = row[1]
-
-            if(row[0] == 1) 
-            { // mining exp
-                source = profileData['members'][uuid][sourceToSearch]
-                if(source != undefined) { experienceColeWeight = Math.ceil(source/row[2]*100) / 100 }
-            } 
-            if(row[0] == 2) 
-            { // mithril powder
-                source = profileData['members'][uuid]['mining_core'][sourceToSearch]
-                powder2 = profileData['members'][uuid]['mining_core']['powder_spent_mithril']
-                if(source != undefined)
-                {
-                    if (powder2 != undefined) { mithrilPowderColeWeight = Math.ceil((source+powder2)/row[2]*100) / 100 }
-                    else { mithrilPowderColeWeight = Math.ceil((source)/row[2]*100) / 100 }
-                }   
-            }
-            
-            if(row[0] == 3) 
-            { // gemstone powder
-                source = profileData['members'][uuid]['mining_core'][sourceToSearch]
-                powder2 = profileData['members'][uuid]['mining_core']['powder_spent_gemstone']
-                if (source != undefined) {
-                    if(powder2 != undefined) { gemstonePowderColeWeight = Math.ceil((source+powder2)/row[2]*100) / 100 } 
-                    else { gemstonePowderColeWeight = Math.ceil((source)/row[2]*100) / 100 }
-                }
-                
-            }
-            powderColeWeight = gemstonePowderColeWeight + mithrilPowderColeWeight
-            if(row[0] >= 4 && row[0] <= 25) 
-            { // collection
-                sourceToSearch = sourceToSearch.toUpperCase()
-
-                source = profileData['members'][uuid]['collection'][sourceToSearch]
-                if(source != undefined) { collectionColeWeight += Math.ceil(source/row[2]*100) / 100 }
-            } 
-            if(row[0] >=26 && row[0] <= 27) 
-            { // worms/scathas
-                source = profileData['members'][uuid]['bestiary'][sourceToSearch]
-                if(source != undefined) { bestiaryColeWeight += Math.ceil(source/row[2]*100) / 100 }
-            }
-            coleweight += bestiaryColeWeight
-            if(row[0] == 28) 
-            { // nucleus runs
-                source = profileData['members'][uuid]['mining_core']['crystals']['jade_crystal'][sourceToSearch]
-                if(source != undefined) { nucleusRunsColeWeight = Math.ceil(source/row[2]*100) / 100 }
-            }
-        } 
-    }
-    catch(e) { name + " had api off!" }
-
-    coleweight = experienceColeWeight + powderColeWeight + collectionColeWeight + bestiaryColeWeight + nucleusRunsColeWeight
-    // rounding below
-    experienceColeWeight = Math.ceil(experienceColeWeight*100) / 100
-    powderColeWeight = Math.ceil(powderColeWeight*100) / 100
-    collectionColeWeight = Math.ceil(collectionColeWeight*100) / 100
-    bestiaryColeWeight = Math.ceil(bestiaryColeWeight*100) / 100
-    nucleusRunsColeWeight = Math.ceil(nucleusRunsColeWeight*100) / 100
-    coleweight = Math.ceil(coleweight*100) / 100
-    // cache data
-    
-    
-
-    for(let i = 0; i < lbRows.length; i++)
+    if(profileData?.cute_name == undefined) // final check for profile if profile has skill api off.
     {
-        let row = lbRows[i].split(" ")
-        if(lbRows[i] == undefined || lbRows[i] == "") { lbRows.splice(i, 1) }
-        if(row[0] == name) {
-            lbRows.splice(i, 1)
-        }
-    }
-
-    writeData = ""
-    for(let i = 0; i < lbRows.length; i++)
-    {
-        let row = lbRows[i].split(" "),
-            previousRow = ["", Infinity]
-        if(lbRows[i - 1] != undefined) { previousRow = lbRows[i - 1].split(" ") }
-
-        if(coleweight >= row[1] && coleweight < previousRow[1]) 
+        replaceName = false;
+        for(let i = 0; i < userData.profiles.length; i++)
         {
-            lbRows.splice(i, 0, name + " " + coleweight + " " + uuid)
-            rank = i + 1
+            if (profile == undefined && userData.profiles[i].selected == true)
+                profileData = userData.profiles[i];
+            else if(profile != undefined && userData.profiles[i].cute_name.toLowerCase() == profile.toLowerCase())
+                profileData = userData.profiles[i];
         }
-        if(i < lbRows.length - 1) { writeData = writeData + lbRows[i] + "\r\n" }
-        else if( row[2] != undefined) { writeData = writeData + row[0] + " " + parseFloat(row[1]) + " " + row[2]}
-        else { writeData = writeData + row[0] + " " + parseFloat(row[1])}
     }
 
-    fs.writeFileSync(coleweightlbPath, writeData)
+    if(profileData?.cute_name == undefined) return 102; // no profiles
 
-    var percentile = "N/A"
-    
+    try {
+        let cwinfo = JSON.parse(fs.readFileSync("./csvs/cwinfo.json", "utf8"));
+        for(let i = 0; i < cwinfo.length; i++)
+        {
+            let source = getObjectValue(profileData.members[uuid], cwinfo[i].path),
+             source2 = getObjectValue(profileData.members[uuid], cwinfo[i].path2),
+             eq;
+
+            if(data[cwinfo[i].category]?.total == undefined)
+                data[cwinfo[i].category].total = 0;
+
+            if(source === undefined) continue;
+
+            eq = Math.ceil(source/cwinfo[i].cost*100) / 100;
+
+            if(source2 !== undefined)
+                eq = Math.ceil((source+source2)/cwinfo[i].cost*100) / 100;
+
+            if(eq !== undefined)
+            {
+                data[cwinfo[i].category].total += eq;
+                data[cwinfo[i].category][cwinfo[i].nameStringed] = Math.round(eq*100) / 100;
+            }
+        }
+    }
+    catch(e) { logToFile(e); }
+    coleweight = data.experience.total + data.powder.total + data.collection.total + data.miscellaneous.total;
+
+    // rounding below
+    coleweight = Math.ceil(coleweight*100) / 100;
+
+    // cache data
+    for(let i = 0; i < lbRows.length; i++)
+    {
+        let row = lbRows[i].split(" ");
+        if(lbRows[i] == undefined || lbRows[i] == "") { lbRows.splice(i, 1); }
+        if(row[2] == uuid)
+        {
+            if (row[0] != name)
+            {
+                logToFile(`Found duplicate names ${row[0]} (orig) and ${name}!`);
+                lbRows.splice(i, 1);
+            }
+            if (replaceName)
+                lbRows.splice(i, 1);
+            nameFound = true;
+            rank = i + 1;
+            break;
+        }
+    }
+
+    if(lbRows.length > 0)
+    {
+        let added = false;
+
+        for(let i = 0; i < lbRows.length; i++)
+        {
+            let row = lbRows[i].split(" "),
+                previousRow = ["", Infinity];
+
+            if(lbRows[i - 1] != undefined) { previousRow = lbRows[i - 1].split(" "); }
+
+            if(coleweight >= row[1] && coleweight < previousRow[1] && ((replaceName && nameFound) || !nameFound))
+            {
+                added = true;
+                lbRows.splice(i, 0, name + " " + coleweight + " " + uuid);
+                rank = i + 1;
+            }
+        }
+
+        if(!added && ((replaceName && nameFound) || !nameFound))
+        {
+            lbRows.push(name + " " + coleweight + " " + uuid);
+            rank = lbRows.length;
+        }
+    }
+    else if ((replaceName && nameFound) || !nameFound)
+    {
+        lbRows.push(name + " " + coleweight + " " + uuid);
+        rank = 1;
+    }
+
+
+    writeData = lbRows.join("\r\n");
+    fs.writeFileSync(coleweightlbPath, writeData);
+    var percentile = "N/A";
+
     if(rank != undefined)
     {
-        var percentile = Math.ceil(rank/(lbRows.length)*10000) / 100
+        percentile = Math.ceil(rank/(lbRows.length)*10000) / 100;
     }
-    
-    data.name = name
-    data.coleweight = coleweight
-    data.rank = rank
-    data.exp = experienceColeWeight
-    data.pow = powderColeWeight
-    data.col = collectionColeWeight
-    data.bes = bestiaryColeWeight
-    data.nuc = nucleusRunsColeWeight
-    data.percentile = percentile
-    data.profileData = profileData
+    data.name = name;
+    data.coleweight = coleweight;
+    data.rank = rank;
+    data.percentile = percentile;
+    data.profileData = profileData;
+    data.ping = Date.now() - totalTime;
+	data.profile = profileData?.cute_name ?? "Unknown";
+
+    if(fs.readFileSync("./csvs/coleweightlb.csv", "utf8").length >= fs.readFileSync("./csvs/coleweightlb backup.csv", "utf8").length)
+    {
+        fs.writeFile("./csvs/coleweightlb backup.csv", fs.readFileSync("./csvs/coleweightlb.csv", "utf8"), err => {
+            if (err)
+            {
+                logToFile("Write error 2: " + err);
+            }
+        });
+    }
+
 
     return data;
 }
 
-module.exports = { getColeweight, getProfile, }
+
+function getLeaderboard(path, length = Infinity, start = 1)
+{
+    let coleweightlbPath = path,
+     rows = fs.readFileSync(coleweightlbPath, "utf8").split("\r\n"),
+     lb = [],
+     row,
+     name,
+     coleweight,
+     lengthInt = parseInt(length),
+     startInt = parseInt(start);
+    if(isNaN(startInt) || isNaN(lengthInt)) return { code: 100, message: "Malformed parameters"};
+    let i = startInt-1;
+
+    if(lengthInt > 5000)
+        lengthInt = 5000;
+    while(i < rows.length && i < startInt + lengthInt)
+    {
+        row = rows[i].split(" ");
+        name = row[0];
+        coleweight = row[1];
+
+        lb.push(
+        {
+            rank: i + 1,
+            name: name,
+            coleweight
+        });
+        i++;
+    }
+
+    return lb;
+}
+
+async function auctionScan(uuids)
+{
+    let recentlyEndedAuctions = (await axios.get("https://api.hypixel.net/skyblock/auctions_ended")).data.auctions,
+        players = 0,
+        date_ob = new Date(),
+        dropUUIDs = 30;
+
+    for(let i = 0; i < recentlyEndedAuctions.length && i < 30; i++)
+    {
+        let seller = recentlyEndedAuctions[i].seller,
+            buyer = recentlyEndedAuctions[i].buyer;
+        if(seller != undefined && uuids.indexOf(seller) == -1) { uuids.push(seller); await getColeweight(seller); }
+        if (buyer != undefined && uuids.indexOf(buyer) == -1) { uuids.push(buyer); await getColeweight(buyer); }
+        players += 1;
+    }
+    minutes = date_ob.getMinutes();
+    if(dropUUIDs != minutes)
+    {
+        logToFile("Scanned " + players + " players!");
+        await sleep(60000);
+        auctionScan(uuids);
+    }
+    else
+    {
+        uuids = [];
+        logToFile("Scanned " + players + " players!");
+        await sleep(60000);
+        auctionScan(uuids);
+    }
+}
+
+async function lbreq(username)
+{
+    let lbRows = fs.readFileSync("./csvs/coleweightlb.csv", "utf8").split("\r\n"),
+     row = [],
+     data = {};
+
+    for(let i = 0; i < lbRows.length; i++)
+    {
+        row = lbRows[i].split(" ");
+
+        if(row[0] == username)
+        {
+            data.rank = i + 1;
+            return data;
+        }
+    }
+    data.rank = -1;
+    return data;
+}
+
+module.exports = { getColeweight, getLeaderboard, auctionScan, sleep, lbreq, getUserData, getUserAuctions };
