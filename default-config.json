@@ -1,12 +1,12 @@
 {
   "discord": {
     "token": "Token of bot.",
-    "clientID": "Client ID of bot.",
-    "serverID": "Server ID that the bot is in.",
-    "commandRole": "Unused for now."
+    "clientID": "Client ID of bot. field below gives /cwbutton, /cwguild, and advanced /findmminer",
+    "staffRoles": ["(discord role id) (developer mode)"],
+    "owner": "Discord name",
+    "webhookForAlloys": "set to a webhook link if you want to get notified on alloy."
   },
   "api": {
-    "hypixelAPI": "https://api.hypixel.net",
     "hypixelAPIkey": "Hypixel api key."
   }
 }
