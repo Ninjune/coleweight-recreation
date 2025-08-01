@@ -7,7 +7,6 @@ package-lock.json
 .prettierrc.json
 *.csv
 config.json
-src/web/
 index.js
 logs/
 logs/*
