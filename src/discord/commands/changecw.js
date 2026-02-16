@@ -7,13 +7,13 @@ module.exports = {
     description: "(Requires permission) Changes one coleweight value to the new value (DESTRUCTIVE)",
     options: [
         {
-            name: "valueName",
+            name: "name",
             description: "(case insensitive) type with spaces exact",
             type: 3,
             required: true
         },
         {
-            name: "newValue",
+            name: "new_cost",
             description: "number",
             type: 3,
             required: true
