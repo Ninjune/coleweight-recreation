@@ -31,7 +31,11 @@ module.exports = {
 
             const entry = cwinfo.find((element) => element?.nameStringed?.toLowerCase() == valueName)
             if(entry == undefined)
+            {
                 badResponse(interaction, "An entry with the given name was not found!", true)
+                return
+            }
+            const oldCost = entry.cost
             entry.cost = newCost
 
             fs.writeFileSync("./csvs/cwinfo.json", JSON.stringify(cwinfo))
