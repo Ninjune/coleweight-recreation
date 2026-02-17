@@ -22,14 +22,16 @@ module.exports = {
 
     execute: async (interaction, client) => {
         const permUsersRows = fs.readFileSync("./csvs/cwinfo.json", "utf8").split("\r\n")
-        const valueName = interaction.options.getString("valueName").toLowerCase()
-        const newCost = interaction.options.getString("newValue")
+        const valueName = interaction.options.getString("name").toLowerCase()
+        const newCost = interaction.options.getString("new_cost")
 
         if(permUsersRows.includes(interaction.user.id))
         {
             const cwinfo = JSON.parse(fs.readFileSync("./csvs/cwinfo.json", "utf8"))
 
             const entry = cwinfo.find((element) => element.nameStringed.toLowerCase() == valueName)
+            if(entry == undefined)
+                badResponse(interaction, "An entry with the given name was not found!", true)
             entry.cost = newCost
 
             fs.writeFileSync("./csvs/cwinfo.json", JSON.stringify(cwinfo))
