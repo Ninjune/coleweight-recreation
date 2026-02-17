@@ -21,7 +21,7 @@ module.exports = {
     ],
 
     execute: async (interaction, client) => {
-        const permUsersRows = fs.readFileSync("./csvs/cwinfo.json", "utf8").split("\r\n")
+        const permUsersRows = fs.readFileSync("./csvs/cwinfo.json", "utf8").split("\n")
         const valueName = interaction.options.getString("name")?.toLowerCase()
         const newCost = interaction.options.getString("new_cost")
 
