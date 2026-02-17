@@ -15,12 +15,12 @@ module.exports = {
     ],
 
     execute: async (interaction, client) => {
-        const permUsersRows = fs.readFileSync("./csvs/mminerUsers.csv", "utf8").split("\n")
+        const permUsersRows = fs.readFileSync("./csvs/mminerUsers.csv", "utf8").split("\r\n")
         const discIDToAdd = interaction.options.getString("id")
 
         if(permUsersRows.includes(interaction.user.id))
         {
-            fs.appendFileSync("./csvs/mminerUsers.csv", "\n" + discIDToAdd)
+            fs.appendFileSync("./csvs/mminerUsers.csv", "\r\n" + discIDToAdd)
 
             const embed = new EmbedBuilder()
             .setColor(0x999900)
