@@ -17,7 +17,7 @@ class DiscordManager {
     }
 
     async connect() {
-        global.client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] })
+        global.client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] })
         this.client = client
         this.client.on("ready", () => this.stateHandler.onReady())
 
